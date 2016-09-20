@@ -2,7 +2,7 @@
  * Angular Material Design
  * https://github.com/angular/material
  * @license MIT
- * v1.1.1-master-72d0685
+ * v1
  */
 (function( window, angular, undefined ){
 "use strict";
@@ -186,24 +186,6 @@ function MdTabLabel () {
   return { terminal: true };
 }
 
-
-
-MdTabScroll.$inject = ["$parse"];angular.module('material.components.tabs')
-    .directive('mdTabScroll', MdTabScroll);
-
-function MdTabScroll ($parse) {
-  return {
-    restrict: 'A',
-    compile: function ($element, attr) {
-      var fn = $parse(attr.mdTabScroll, null, true);
-      return function ngEventHandler (scope, element) {
-        element.on('mousewheel', function (event) {
-          scope.$apply(function () { fn(scope, { $event: event }); });
-        });
-      };
-    }
-  };
-}
 
 
 MdTabsController.$inject = ["$scope", "$element", "$window", "$mdConstant", "$mdTabInkRipple", "$mdUtil", "$animateCss", "$attrs", "$compile", "$mdTheming"];angular
@@ -1047,6 +1029,24 @@ function MdTabsController ($scope, $element, $window, $mdConstant, $mdTabInkRipp
     var options = { colorElement: angular.element(elements.inkBar) };
     $mdTabInkRipple.attach(scope, element, options);
   }
+}
+
+
+MdTabScroll.$inject = ["$parse"];angular.module('material.components.tabs')
+    .directive('mdTabScroll', MdTabScroll);
+
+function MdTabScroll ($parse) {
+  return {
+    restrict: 'A',
+    compile: function ($element, attr) {
+      var fn = $parse(attr.mdTabScroll, null, true);
+      return function ngEventHandler (scope, element) {
+        element.on('mousewheel', function (event) {
+          scope.$apply(function () { fn(scope, { $event: event }); });
+        });
+      };
+    }
+  };
 }
 
 /**

@@ -2,7 +2,7 @@
  * Angular Material Design
  * https://github.com/angular/material
  * @license MIT
- * v1.1.1-master-72d0685
+ * v1
  */
 goog.provide('ngmaterial.components.chips');
 goog.require('ngmaterial.components.autocomplete');
@@ -340,33 +340,6 @@ function MdChipRemove ($timeout) {
       element.attr({ tabindex: -1, 'aria-hidden': true });
       element.find('button').attr('tabindex', '-1');
     });
-  }
-}
-
-
-MdChipTransclude.$inject = ["$compile"];angular
-    .module('material.components.chips')
-    .directive('mdChipTransclude', MdChipTransclude);
-
-function MdChipTransclude ($compile) {
-  return {
-    restrict: 'EA',
-    terminal: true,
-    link: link,
-    scope: false
-  };
-  function link (scope, element, attr) {
-    var ctrl = scope.$parent.$mdChipsCtrl,
-        newScope = ctrl.parent.$new(false, ctrl.parent);
-    newScope.$$replacedScope = scope;
-    newScope.$chip = scope.$chip;
-    newScope.$index = scope.$index;
-    newScope.$mdChipsCtrl = ctrl;
-
-    var newHtml = ctrl.$scope.$eval(attr.mdChipTransclude);
-
-    element.html(newHtml);
-    $compile(element.contents())(newScope);
   }
 }
 
@@ -1379,6 +1352,33 @@ MdChipsCtrl.prototype.hasFocus = function () {
       };
     }
   }
+
+
+MdChipTransclude.$inject = ["$compile"];angular
+    .module('material.components.chips')
+    .directive('mdChipTransclude', MdChipTransclude);
+
+function MdChipTransclude ($compile) {
+  return {
+    restrict: 'EA',
+    terminal: true,
+    link: link,
+    scope: false
+  };
+  function link (scope, element, attr) {
+    var ctrl = scope.$parent.$mdChipsCtrl,
+        newScope = ctrl.parent.$new(false, ctrl.parent);
+    newScope.$$replacedScope = scope;
+    newScope.$chip = scope.$chip;
+    newScope.$index = scope.$index;
+    newScope.$mdChipsCtrl = ctrl;
+
+    var newHtml = ctrl.$scope.$eval(attr.mdChipTransclude);
+
+    element.html(newHtml);
+    $compile(element.contents())(newScope);
+  }
+}
 
 angular
     .module('material.components.chips')

@@ -2,7 +2,7 @@
  * Angular Material Design
  * https://github.com/angular/material
  * @license MIT
- * v1.1.1-master-72d0685
+ * v1
  */
 (function( window, angular, undefined ){
 "use strict";
@@ -1787,6 +1787,151 @@ angular.element.prototype.blur = angular.element.prototype.blur || function() {
 (function(){
 "use strict";
 
+
+mdCompilerService.$inject = ["$q", "$templateRequest", "$injector", "$compile", "$controller"];angular
+  .module('material.core')
+  .service('$mdCompiler', mdCompilerService);
+
+function mdCompilerService($q, $templateRequest, $injector, $compile, $controller) {
+  /* jshint validthis: true */
+
+  /*
+   * @ngdoc service
+   * @name $mdCompiler
+   * @module material.core
+   * @description
+   * The $mdCompiler service is an abstraction of angular's compiler, that allows the developer
+   * to easily compile an element with a templateUrl, controller, and locals.
+   *
+   * @usage
+   * <hljs lang="js">
+   * $mdCompiler.compile({
+   *   templateUrl: 'modal.html',
+   *   controller: 'ModalCtrl',
+   *   locals: {
+   *     modal: myModalInstance;
+   *   }
+   * }).then(function(compileData) {
+   *   compileData.element; // modal.html's template in an element
+   *   compileData.link(myScope); //attach controller & scope to element
+   * });
+   * </hljs>
+   */
+
+   /*
+    * @ngdoc method
+    * @name $mdCompiler#compile
+    * @description A helper to compile an HTML template/templateUrl with a given controller,
+    * locals, and scope.
+    * @param {object} options An options object, with the following properties:
+    *
+    *    - `controller` - `{(string=|function()=}` Controller fn that should be associated with
+    *      newly created scope or the name of a registered controller if passed as a string.
+    *    - `controllerAs` - `{string=}` A controller alias name. If present the controller will be
+    *      published to scope under the `controllerAs` name.
+    *    - `template` - `{string=}` An html template as a string.
+    *    - `templateUrl` - `{string=}` A path to an html template.
+    *    - `transformTemplate` - `{function(template)=}` A function which transforms the template after
+    *      it is loaded. It will be given the template string as a parameter, and should
+    *      return a a new string representing the transformed template.
+    *    - `resolve` - `{Object.<string, function>=}` - An optional map of dependencies which should
+    *      be injected into the controller. If any of these dependencies are promises, the compiler
+    *      will wait for them all to be resolved, or if one is rejected before the controller is
+    *      instantiated `compile()` will fail..
+    *      * `key` - `{string}`: a name of a dependency to be injected into the controller.
+    *      * `factory` - `{string|function}`: If `string` then it is an alias for a service.
+    *        Otherwise if function, then it is injected and the return value is treated as the
+    *        dependency. If the result is a promise, it is resolved before its value is
+    *        injected into the controller.
+    *
+    * @returns {object=} promise A promise, which will be resolved with a `compileData` object.
+    * `compileData` has the following properties:
+    *
+    *   - `element` - `{element}`: an uncompiled element matching the provided template.
+    *   - `link` - `{function(scope)}`: A link function, which, when called, will compile
+    *     the element and instantiate the provided controller (if given).
+    *   - `locals` - `{object}`: The locals which will be passed into the controller once `link` is
+    *     called. If `bindToController` is true, they will be copied to the ctrl instead
+    *   - `bindToController` - `bool`: bind the locals to the controller, instead of passing them in.
+    */
+  this.compile = function(options) {
+    var templateUrl = options.templateUrl;
+    var template = options.template || '';
+    var controller = options.controller;
+    var controllerAs = options.controllerAs;
+    var resolve = angular.extend({}, options.resolve || {});
+    var locals = angular.extend({}, options.locals || {});
+    var transformTemplate = options.transformTemplate || angular.identity;
+    var bindToController = options.bindToController;
+
+    // Take resolve values and invoke them.
+    // Resolves can either be a string (value: 'MyRegisteredAngularConst'),
+    // or an invokable 'factory' of sorts: (value: function ValueGetter($dependency) {})
+    angular.forEach(resolve, function(value, key) {
+      if (angular.isString(value)) {
+        resolve[key] = $injector.get(value);
+      } else {
+        resolve[key] = $injector.invoke(value);
+      }
+    });
+    //Add the locals, which are just straight values to inject
+    //eg locals: { three: 3 }, will inject three into the controller
+    angular.extend(resolve, locals);
+
+    if (templateUrl) {
+      resolve.$template = $templateRequest(templateUrl);
+    } else {
+      resolve.$template = $q.when(template);
+    }
+
+    // Wait for all the resolves to finish if they are promises
+    return $q.all(resolve).then(function(locals) {
+
+      var compiledData;
+      var template = transformTemplate(locals.$template, options);
+      var element = options.element || angular.element('<div>').html(template.trim()).contents();
+      var linkFn = $compile(element);
+
+      // Return a linking function that can be used later when the element is ready
+      return compiledData = {
+        locals: locals,
+        element: element,
+        link: function link(scope) {
+          locals.$scope = scope;
+
+          // Instantiate controller if it exists, because we have scope
+          if (controller) {
+
+            var ctrlLocals = angular.extend(locals, {
+              $element: element
+            });
+
+            var invokeCtrl = $controller(controller, ctrlLocals, true, controllerAs);
+
+            if (bindToController) {
+              angular.extend(invokeCtrl.instance, locals);
+            }
+
+            var ctrl = invokeCtrl();
+            //See angular-route source for this logic
+            element.data('$ngControllerController', ctrl);
+            element.children().data('$ngControllerController', ctrl);
+
+            // Publish reference to this controller
+            compiledData.controller = ctrl;
+          }
+          return linkFn(scope);
+        }
+      };
+    });
+
+  };
+}
+
+})();
+(function(){
+"use strict";
+
 /**
  * @ngdoc module
  * @name material.core.aria
@@ -1964,151 +2109,6 @@ function MdAriaService($$rAF, $log, $window, $interpolate) {
 
     return hasAttr;
   }
-}
-
-})();
-(function(){
-"use strict";
-
-
-mdCompilerService.$inject = ["$q", "$templateRequest", "$injector", "$compile", "$controller"];angular
-  .module('material.core')
-  .service('$mdCompiler', mdCompilerService);
-
-function mdCompilerService($q, $templateRequest, $injector, $compile, $controller) {
-  /* jshint validthis: true */
-
-  /*
-   * @ngdoc service
-   * @name $mdCompiler
-   * @module material.core
-   * @description
-   * The $mdCompiler service is an abstraction of angular's compiler, that allows the developer
-   * to easily compile an element with a templateUrl, controller, and locals.
-   *
-   * @usage
-   * <hljs lang="js">
-   * $mdCompiler.compile({
-   *   templateUrl: 'modal.html',
-   *   controller: 'ModalCtrl',
-   *   locals: {
-   *     modal: myModalInstance;
-   *   }
-   * }).then(function(compileData) {
-   *   compileData.element; // modal.html's template in an element
-   *   compileData.link(myScope); //attach controller & scope to element
-   * });
-   * </hljs>
-   */
-
-   /*
-    * @ngdoc method
-    * @name $mdCompiler#compile
-    * @description A helper to compile an HTML template/templateUrl with a given controller,
-    * locals, and scope.
-    * @param {object} options An options object, with the following properties:
-    *
-    *    - `controller` - `{(string=|function()=}` Controller fn that should be associated with
-    *      newly created scope or the name of a registered controller if passed as a string.
-    *    - `controllerAs` - `{string=}` A controller alias name. If present the controller will be
-    *      published to scope under the `controllerAs` name.
-    *    - `template` - `{string=}` An html template as a string.
-    *    - `templateUrl` - `{string=}` A path to an html template.
-    *    - `transformTemplate` - `{function(template)=}` A function which transforms the template after
-    *      it is loaded. It will be given the template string as a parameter, and should
-    *      return a a new string representing the transformed template.
-    *    - `resolve` - `{Object.<string, function>=}` - An optional map of dependencies which should
-    *      be injected into the controller. If any of these dependencies are promises, the compiler
-    *      will wait for them all to be resolved, or if one is rejected before the controller is
-    *      instantiated `compile()` will fail..
-    *      * `key` - `{string}`: a name of a dependency to be injected into the controller.
-    *      * `factory` - `{string|function}`: If `string` then it is an alias for a service.
-    *        Otherwise if function, then it is injected and the return value is treated as the
-    *        dependency. If the result is a promise, it is resolved before its value is
-    *        injected into the controller.
-    *
-    * @returns {object=} promise A promise, which will be resolved with a `compileData` object.
-    * `compileData` has the following properties:
-    *
-    *   - `element` - `{element}`: an uncompiled element matching the provided template.
-    *   - `link` - `{function(scope)}`: A link function, which, when called, will compile
-    *     the element and instantiate the provided controller (if given).
-    *   - `locals` - `{object}`: The locals which will be passed into the controller once `link` is
-    *     called. If `bindToController` is true, they will be copied to the ctrl instead
-    *   - `bindToController` - `bool`: bind the locals to the controller, instead of passing them in.
-    */
-  this.compile = function(options) {
-    var templateUrl = options.templateUrl;
-    var template = options.template || '';
-    var controller = options.controller;
-    var controllerAs = options.controllerAs;
-    var resolve = angular.extend({}, options.resolve || {});
-    var locals = angular.extend({}, options.locals || {});
-    var transformTemplate = options.transformTemplate || angular.identity;
-    var bindToController = options.bindToController;
-
-    // Take resolve values and invoke them.
-    // Resolves can either be a string (value: 'MyRegisteredAngularConst'),
-    // or an invokable 'factory' of sorts: (value: function ValueGetter($dependency) {})
-    angular.forEach(resolve, function(value, key) {
-      if (angular.isString(value)) {
-        resolve[key] = $injector.get(value);
-      } else {
-        resolve[key] = $injector.invoke(value);
-      }
-    });
-    //Add the locals, which are just straight values to inject
-    //eg locals: { three: 3 }, will inject three into the controller
-    angular.extend(resolve, locals);
-
-    if (templateUrl) {
-      resolve.$template = $templateRequest(templateUrl);
-    } else {
-      resolve.$template = $q.when(template);
-    }
-
-    // Wait for all the resolves to finish if they are promises
-    return $q.all(resolve).then(function(locals) {
-
-      var compiledData;
-      var template = transformTemplate(locals.$template, options);
-      var element = options.element || angular.element('<div>').html(template.trim()).contents();
-      var linkFn = $compile(element);
-
-      // Return a linking function that can be used later when the element is ready
-      return compiledData = {
-        locals: locals,
-        element: element,
-        link: function link(scope) {
-          locals.$scope = scope;
-
-          // Instantiate controller if it exists, because we have scope
-          if (controller) {
-
-            var ctrlLocals = angular.extend(locals, {
-              $element: element
-            });
-
-            var invokeCtrl = $controller(controller, ctrlLocals, true, controllerAs);
-
-            if (bindToController) {
-              angular.extend(invokeCtrl.instance, locals);
-            }
-
-            var ctrl = invokeCtrl();
-            //See angular-route source for this logic
-            element.data('$ngControllerController', ctrl);
-            element.children().data('$ngControllerController', ctrl);
-
-            // Publish reference to this controller
-            compiledData.controller = ctrl;
-          }
-          return linkFn(scope);
-        }
-      };
-    });
-
-  };
 }
 
 })();
@@ -24601,37 +24601,6 @@ function MdChipRemove ($timeout) {
 "use strict";
 
 
-MdChipTransclude.$inject = ["$compile"];angular
-    .module('material.components.chips')
-    .directive('mdChipTransclude', MdChipTransclude);
-
-function MdChipTransclude ($compile) {
-  return {
-    restrict: 'EA',
-    terminal: true,
-    link: link,
-    scope: false
-  };
-  function link (scope, element, attr) {
-    var ctrl = scope.$parent.$mdChipsCtrl,
-        newScope = ctrl.parent.$new(false, ctrl.parent);
-    newScope.$$replacedScope = scope;
-    newScope.$chip = scope.$chip;
-    newScope.$index = scope.$index;
-    newScope.$mdChipsCtrl = ctrl;
-
-    var newHtml = ctrl.$scope.$eval(attr.mdChipTransclude);
-
-    element.html(newHtml);
-    $compile(element.contents())(newScope);
-  }
-}
-
-})();
-(function(){
-"use strict";
-
-
 MdChipsCtrl.$inject = ["$scope", "$attrs", "$mdConstant", "$log", "$element", "$timeout", "$mdUtil"];angular
     .module('material.components.chips')
     .controller('MdChipsCtrl', MdChipsCtrl);
@@ -25644,6 +25613,37 @@ MdChipsCtrl.prototype.hasFocus = function () {
       };
     }
   }
+
+})();
+(function(){
+"use strict";
+
+
+MdChipTransclude.$inject = ["$compile"];angular
+    .module('material.components.chips')
+    .directive('mdChipTransclude', MdChipTransclude);
+
+function MdChipTransclude ($compile) {
+  return {
+    restrict: 'EA',
+    terminal: true,
+    link: link,
+    scope: false
+  };
+  function link (scope, element, attr) {
+    var ctrl = scope.$parent.$mdChipsCtrl,
+        newScope = ctrl.parent.$new(false, ctrl.parent);
+    newScope.$$replacedScope = scope;
+    newScope.$chip = scope.$chip;
+    newScope.$index = scope.$index;
+    newScope.$mdChipsCtrl = ctrl;
+
+    var newHtml = ctrl.$scope.$eval(attr.mdChipTransclude);
+
+    element.html(newHtml);
+    $compile(element.contents())(newScope);
+  }
+}
 
 })();
 (function(){
@@ -27609,322 +27609,6 @@ function MdContactChips($mdTheming, $mdUtil) {
 (function() {
   'use strict';
 
-  /**
-   * Utility for performing date calculations to facilitate operation of the calendar and
-   * datepicker.
-   */
-  angular.module('material.components.datepicker').factory('$$mdDateUtil', function() {
-    return {
-      getFirstDateOfMonth: getFirstDateOfMonth,
-      getNumberOfDaysInMonth: getNumberOfDaysInMonth,
-      getDateInNextMonth: getDateInNextMonth,
-      getDateInPreviousMonth: getDateInPreviousMonth,
-      isInNextMonth: isInNextMonth,
-      isInPreviousMonth: isInPreviousMonth,
-      getDateMidpoint: getDateMidpoint,
-      isSameMonthAndYear: isSameMonthAndYear,
-      getWeekOfMonth: getWeekOfMonth,
-      incrementDays: incrementDays,
-      incrementMonths: incrementMonths,
-      getLastDateOfMonth: getLastDateOfMonth,
-      isSameDay: isSameDay,
-      getMonthDistance: getMonthDistance,
-      isValidDate: isValidDate,
-      setDateTimeToMidnight: setDateTimeToMidnight,
-      createDateAtMidnight: createDateAtMidnight,
-      isDateWithinRange: isDateWithinRange,
-      incrementYears: incrementYears,
-      getYearDistance: getYearDistance,
-      clampDate: clampDate,
-      getTimestampFromNode: getTimestampFromNode,
-      isMonthWithinRange: isMonthWithinRange
-    };
-
-    /**
-     * Gets the first day of the month for the given date's month.
-     * @param {Date} date
-     * @returns {Date}
-     */
-    function getFirstDateOfMonth(date) {
-      return new Date(date.getFullYear(), date.getMonth(), 1);
-    }
-
-    /**
-     * Gets the number of days in the month for the given date's month.
-     * @param date
-     * @returns {number}
-     */
-    function getNumberOfDaysInMonth(date) {
-      return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-    }
-
-    /**
-     * Get an arbitrary date in the month after the given date's month.
-     * @param date
-     * @returns {Date}
-     */
-    function getDateInNextMonth(date) {
-      return new Date(date.getFullYear(), date.getMonth() + 1, 1);
-    }
-
-    /**
-     * Get an arbitrary date in the month before the given date's month.
-     * @param date
-     * @returns {Date}
-     */
-    function getDateInPreviousMonth(date) {
-      return new Date(date.getFullYear(), date.getMonth() - 1, 1);
-    }
-
-    /**
-     * Gets whether two dates have the same month and year.
-     * @param {Date} d1
-     * @param {Date} d2
-     * @returns {boolean}
-     */
-    function isSameMonthAndYear(d1, d2) {
-      return d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth();
-    }
-
-    /**
-     * Gets whether two dates are the same day (not not necesarily the same time).
-     * @param {Date} d1
-     * @param {Date} d2
-     * @returns {boolean}
-     */
-    function isSameDay(d1, d2) {
-      return d1.getDate() == d2.getDate() && isSameMonthAndYear(d1, d2);
-    }
-
-    /**
-     * Gets whether a date is in the month immediately after some date.
-     * @param {Date} startDate The date from which to compare.
-     * @param {Date} endDate The date to check.
-     * @returns {boolean}
-     */
-    function isInNextMonth(startDate, endDate) {
-      var nextMonth = getDateInNextMonth(startDate);
-      return isSameMonthAndYear(nextMonth, endDate);
-    }
-
-    /**
-     * Gets whether a date is in the month immediately before some date.
-     * @param {Date} startDate The date from which to compare.
-     * @param {Date} endDate The date to check.
-     * @returns {boolean}
-     */
-    function isInPreviousMonth(startDate, endDate) {
-      var previousMonth = getDateInPreviousMonth(startDate);
-      return isSameMonthAndYear(endDate, previousMonth);
-    }
-
-    /**
-     * Gets the midpoint between two dates.
-     * @param {Date} d1
-     * @param {Date} d2
-     * @returns {Date}
-     */
-    function getDateMidpoint(d1, d2) {
-      return createDateAtMidnight((d1.getTime() + d2.getTime()) / 2);
-    }
-
-    /**
-     * Gets the week of the month that a given date occurs in.
-     * @param {Date} date
-     * @returns {number} Index of the week of the month (zero-based).
-     */
-    function getWeekOfMonth(date) {
-      var firstDayOfMonth = getFirstDateOfMonth(date);
-      return Math.floor((firstDayOfMonth.getDay() + date.getDate() - 1) / 7);
-    }
-
-    /**
-     * Gets a new date incremented by the given number of days. Number of days can be negative.
-     * @param {Date} date
-     * @param {number} numberOfDays
-     * @returns {Date}
-     */
-    function incrementDays(date, numberOfDays) {
-      return new Date(date.getFullYear(), date.getMonth(), date.getDate() + numberOfDays);
-    }
-
-    /**
-     * Gets a new date incremented by the given number of months. Number of months can be negative.
-     * If the date of the given month does not match the target month, the date will be set to the
-     * last day of the month.
-     * @param {Date} date
-     * @param {number} numberOfMonths
-     * @returns {Date}
-     */
-    function incrementMonths(date, numberOfMonths) {
-      // If the same date in the target month does not actually exist, the Date object will
-      // automatically advance *another* month by the number of missing days.
-      // For example, if you try to go from Jan. 30 to Feb. 30, you'll end up on March 2.
-      // So, we check if the month overflowed and go to the last day of the target month instead.
-      var dateInTargetMonth = new Date(date.getFullYear(), date.getMonth() + numberOfMonths, 1);
-      var numberOfDaysInMonth = getNumberOfDaysInMonth(dateInTargetMonth);
-      if (numberOfDaysInMonth < date.getDate()) {
-        dateInTargetMonth.setDate(numberOfDaysInMonth);
-      } else {
-        dateInTargetMonth.setDate(date.getDate());
-      }
-
-      return dateInTargetMonth;
-    }
-
-    /**
-     * Get the integer distance between two months. This *only* considers the month and year
-     * portion of the Date instances.
-     *
-     * @param {Date} start
-     * @param {Date} end
-     * @returns {number} Number of months between `start` and `end`. If `end` is before `start`
-     *     chronologically, this number will be negative.
-     */
-    function getMonthDistance(start, end) {
-      return (12 * (end.getFullYear() - start.getFullYear())) + (end.getMonth() - start.getMonth());
-    }
-
-    /**
-     * Gets the last day of the month for the given date.
-     * @param {Date} date
-     * @returns {Date}
-     */
-    function getLastDateOfMonth(date) {
-      return new Date(date.getFullYear(), date.getMonth(), getNumberOfDaysInMonth(date));
-    }
-
-    /**
-     * Checks whether a date is valid.
-     * @param {Date} date
-     * @return {boolean} Whether the date is a valid Date.
-     */
-    function isValidDate(date) {
-      return date && date.getTime && !isNaN(date.getTime());
-    }
-
-    /**
-     * Sets a date's time to midnight.
-     * @param {Date} date
-     */
-    function setDateTimeToMidnight(date) {
-      if (isValidDate(date)) {
-        date.setHours(0, 0, 0, 0);
-      }
-    }
-
-    /**
-     * Creates a date with the time set to midnight.
-     * Drop-in replacement for two forms of the Date constructor:
-     * 1. No argument for Date representing now.
-     * 2. Single-argument value representing number of seconds since Unix Epoch
-     * or a Date object.
-     * @param {number|Date=} opt_value
-     * @return {Date} New date with time set to midnight.
-     */
-    function createDateAtMidnight(opt_value) {
-      var date;
-      if (angular.isUndefined(opt_value)) {
-        date = new Date();
-      } else {
-        date = new Date(opt_value);
-      }
-      setDateTimeToMidnight(date);
-      return date;
-    }
-
-     /**
-      * Checks if a date is within a min and max range, ignoring the time component.
-      * If minDate or maxDate are not dates, they are ignored.
-      * @param {Date} date
-      * @param {Date} minDate
-      * @param {Date} maxDate
-      */
-     function isDateWithinRange(date, minDate, maxDate) {
-       var dateAtMidnight = createDateAtMidnight(date);
-       var minDateAtMidnight = isValidDate(minDate) ? createDateAtMidnight(minDate) : null;
-       var maxDateAtMidnight = isValidDate(maxDate) ? createDateAtMidnight(maxDate) : null;
-       return (!minDateAtMidnight || minDateAtMidnight <= dateAtMidnight) &&
-           (!maxDateAtMidnight || maxDateAtMidnight >= dateAtMidnight);
-     }
-
-    /**
-     * Gets a new date incremented by the given number of years. Number of years can be negative.
-     * See `incrementMonths` for notes on overflow for specific dates.
-     * @param {Date} date
-     * @param {number} numberOfYears
-     * @returns {Date}
-     */
-     function incrementYears(date, numberOfYears) {
-       return incrementMonths(date, numberOfYears * 12);
-     }
-
-     /**
-      * Get the integer distance between two years. This *only* considers the year portion of the
-      * Date instances.
-      *
-      * @param {Date} start
-      * @param {Date} end
-      * @returns {number} Number of months between `start` and `end`. If `end` is before `start`
-      *     chronologically, this number will be negative.
-      */
-     function getYearDistance(start, end) {
-       return end.getFullYear() - start.getFullYear();
-     }
-
-     /**
-      * Clamps a date between a minimum and a maximum date.
-      * @param {Date} date Date to be clamped
-      * @param {Date=} minDate Minimum date
-      * @param {Date=} maxDate Maximum date
-      * @return {Date}
-      */
-     function clampDate(date, minDate, maxDate) {
-       var boundDate = date;
-       if (minDate && date < minDate) {
-         boundDate = new Date(minDate.getTime());
-       }
-       if (maxDate && date > maxDate) {
-         boundDate = new Date(maxDate.getTime());
-       }
-       return boundDate;
-     }
-
-     /**
-      * Extracts and parses the timestamp from a DOM node.
-      * @param  {HTMLElement} node Node from which the timestamp will be extracted.
-      * @return {number} Time since epoch.
-      */
-     function getTimestampFromNode(node) {
-       if (node && node.hasAttribute('data-timestamp')) {
-         return Number(node.getAttribute('data-timestamp'));
-       }
-     }
-
-     /**
-      * Checks if a month is within a min and max range, ignoring the date and time components.
-      * If minDate or maxDate are not dates, they are ignored.
-      * @param {Date} date
-      * @param {Date} minDate
-      * @param {Date} maxDate
-      */
-     function isMonthWithinRange(date, minDate, maxDate) {
-       var month = date.getMonth();
-       var year = date.getFullYear();
-
-       return (!minDate || minDate.getFullYear() < year || minDate.getMonth() <= month) &&
-        (!maxDate || maxDate.getFullYear() > year || maxDate.getMonth() >= month);
-     }
-  });
-})();
-
-})();
-(function(){
-"use strict";
-
-(function() {
-  'use strict';
-
   // POST RELEASE
   // TODO(jelbourn): Demo that uses moment.js
   // TODO(jelbourn): make sure this plays well with validation and ngMessages.
@@ -28774,6 +28458,322 @@ function MdContactChips($mdTheming, $mdUtil) {
   DatePickerCtrl.prototype.setModelValue = function(value) {
     this.ngModelCtrl.$setViewValue(this.ngDateFilter(value, 'yyyy-MM-dd'));
   };
+})();
+
+})();
+(function(){
+"use strict";
+
+(function() {
+  'use strict';
+
+  /**
+   * Utility for performing date calculations to facilitate operation of the calendar and
+   * datepicker.
+   */
+  angular.module('material.components.datepicker').factory('$$mdDateUtil', function() {
+    return {
+      getFirstDateOfMonth: getFirstDateOfMonth,
+      getNumberOfDaysInMonth: getNumberOfDaysInMonth,
+      getDateInNextMonth: getDateInNextMonth,
+      getDateInPreviousMonth: getDateInPreviousMonth,
+      isInNextMonth: isInNextMonth,
+      isInPreviousMonth: isInPreviousMonth,
+      getDateMidpoint: getDateMidpoint,
+      isSameMonthAndYear: isSameMonthAndYear,
+      getWeekOfMonth: getWeekOfMonth,
+      incrementDays: incrementDays,
+      incrementMonths: incrementMonths,
+      getLastDateOfMonth: getLastDateOfMonth,
+      isSameDay: isSameDay,
+      getMonthDistance: getMonthDistance,
+      isValidDate: isValidDate,
+      setDateTimeToMidnight: setDateTimeToMidnight,
+      createDateAtMidnight: createDateAtMidnight,
+      isDateWithinRange: isDateWithinRange,
+      incrementYears: incrementYears,
+      getYearDistance: getYearDistance,
+      clampDate: clampDate,
+      getTimestampFromNode: getTimestampFromNode,
+      isMonthWithinRange: isMonthWithinRange
+    };
+
+    /**
+     * Gets the first day of the month for the given date's month.
+     * @param {Date} date
+     * @returns {Date}
+     */
+    function getFirstDateOfMonth(date) {
+      return new Date(date.getFullYear(), date.getMonth(), 1);
+    }
+
+    /**
+     * Gets the number of days in the month for the given date's month.
+     * @param date
+     * @returns {number}
+     */
+    function getNumberOfDaysInMonth(date) {
+      return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+    }
+
+    /**
+     * Get an arbitrary date in the month after the given date's month.
+     * @param date
+     * @returns {Date}
+     */
+    function getDateInNextMonth(date) {
+      return new Date(date.getFullYear(), date.getMonth() + 1, 1);
+    }
+
+    /**
+     * Get an arbitrary date in the month before the given date's month.
+     * @param date
+     * @returns {Date}
+     */
+    function getDateInPreviousMonth(date) {
+      return new Date(date.getFullYear(), date.getMonth() - 1, 1);
+    }
+
+    /**
+     * Gets whether two dates have the same month and year.
+     * @param {Date} d1
+     * @param {Date} d2
+     * @returns {boolean}
+     */
+    function isSameMonthAndYear(d1, d2) {
+      return d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth();
+    }
+
+    /**
+     * Gets whether two dates are the same day (not not necesarily the same time).
+     * @param {Date} d1
+     * @param {Date} d2
+     * @returns {boolean}
+     */
+    function isSameDay(d1, d2) {
+      return d1.getDate() == d2.getDate() && isSameMonthAndYear(d1, d2);
+    }
+
+    /**
+     * Gets whether a date is in the month immediately after some date.
+     * @param {Date} startDate The date from which to compare.
+     * @param {Date} endDate The date to check.
+     * @returns {boolean}
+     */
+    function isInNextMonth(startDate, endDate) {
+      var nextMonth = getDateInNextMonth(startDate);
+      return isSameMonthAndYear(nextMonth, endDate);
+    }
+
+    /**
+     * Gets whether a date is in the month immediately before some date.
+     * @param {Date} startDate The date from which to compare.
+     * @param {Date} endDate The date to check.
+     * @returns {boolean}
+     */
+    function isInPreviousMonth(startDate, endDate) {
+      var previousMonth = getDateInPreviousMonth(startDate);
+      return isSameMonthAndYear(endDate, previousMonth);
+    }
+
+    /**
+     * Gets the midpoint between two dates.
+     * @param {Date} d1
+     * @param {Date} d2
+     * @returns {Date}
+     */
+    function getDateMidpoint(d1, d2) {
+      return createDateAtMidnight((d1.getTime() + d2.getTime()) / 2);
+    }
+
+    /**
+     * Gets the week of the month that a given date occurs in.
+     * @param {Date} date
+     * @returns {number} Index of the week of the month (zero-based).
+     */
+    function getWeekOfMonth(date) {
+      var firstDayOfMonth = getFirstDateOfMonth(date);
+      return Math.floor((firstDayOfMonth.getDay() + date.getDate() - 1) / 7);
+    }
+
+    /**
+     * Gets a new date incremented by the given number of days. Number of days can be negative.
+     * @param {Date} date
+     * @param {number} numberOfDays
+     * @returns {Date}
+     */
+    function incrementDays(date, numberOfDays) {
+      return new Date(date.getFullYear(), date.getMonth(), date.getDate() + numberOfDays);
+    }
+
+    /**
+     * Gets a new date incremented by the given number of months. Number of months can be negative.
+     * If the date of the given month does not match the target month, the date will be set to the
+     * last day of the month.
+     * @param {Date} date
+     * @param {number} numberOfMonths
+     * @returns {Date}
+     */
+    function incrementMonths(date, numberOfMonths) {
+      // If the same date in the target month does not actually exist, the Date object will
+      // automatically advance *another* month by the number of missing days.
+      // For example, if you try to go from Jan. 30 to Feb. 30, you'll end up on March 2.
+      // So, we check if the month overflowed and go to the last day of the target month instead.
+      var dateInTargetMonth = new Date(date.getFullYear(), date.getMonth() + numberOfMonths, 1);
+      var numberOfDaysInMonth = getNumberOfDaysInMonth(dateInTargetMonth);
+      if (numberOfDaysInMonth < date.getDate()) {
+        dateInTargetMonth.setDate(numberOfDaysInMonth);
+      } else {
+        dateInTargetMonth.setDate(date.getDate());
+      }
+
+      return dateInTargetMonth;
+    }
+
+    /**
+     * Get the integer distance between two months. This *only* considers the month and year
+     * portion of the Date instances.
+     *
+     * @param {Date} start
+     * @param {Date} end
+     * @returns {number} Number of months between `start` and `end`. If `end` is before `start`
+     *     chronologically, this number will be negative.
+     */
+    function getMonthDistance(start, end) {
+      return (12 * (end.getFullYear() - start.getFullYear())) + (end.getMonth() - start.getMonth());
+    }
+
+    /**
+     * Gets the last day of the month for the given date.
+     * @param {Date} date
+     * @returns {Date}
+     */
+    function getLastDateOfMonth(date) {
+      return new Date(date.getFullYear(), date.getMonth(), getNumberOfDaysInMonth(date));
+    }
+
+    /**
+     * Checks whether a date is valid.
+     * @param {Date} date
+     * @return {boolean} Whether the date is a valid Date.
+     */
+    function isValidDate(date) {
+      return date && date.getTime && !isNaN(date.getTime());
+    }
+
+    /**
+     * Sets a date's time to midnight.
+     * @param {Date} date
+     */
+    function setDateTimeToMidnight(date) {
+      if (isValidDate(date)) {
+        date.setHours(0, 0, 0, 0);
+      }
+    }
+
+    /**
+     * Creates a date with the time set to midnight.
+     * Drop-in replacement for two forms of the Date constructor:
+     * 1. No argument for Date representing now.
+     * 2. Single-argument value representing number of seconds since Unix Epoch
+     * or a Date object.
+     * @param {number|Date=} opt_value
+     * @return {Date} New date with time set to midnight.
+     */
+    function createDateAtMidnight(opt_value) {
+      var date;
+      if (angular.isUndefined(opt_value)) {
+        date = new Date();
+      } else {
+        date = new Date(opt_value);
+      }
+      setDateTimeToMidnight(date);
+      return date;
+    }
+
+     /**
+      * Checks if a date is within a min and max range, ignoring the time component.
+      * If minDate or maxDate are not dates, they are ignored.
+      * @param {Date} date
+      * @param {Date} minDate
+      * @param {Date} maxDate
+      */
+     function isDateWithinRange(date, minDate, maxDate) {
+       var dateAtMidnight = createDateAtMidnight(date);
+       var minDateAtMidnight = isValidDate(minDate) ? createDateAtMidnight(minDate) : null;
+       var maxDateAtMidnight = isValidDate(maxDate) ? createDateAtMidnight(maxDate) : null;
+       return (!minDateAtMidnight || minDateAtMidnight <= dateAtMidnight) &&
+           (!maxDateAtMidnight || maxDateAtMidnight >= dateAtMidnight);
+     }
+
+    /**
+     * Gets a new date incremented by the given number of years. Number of years can be negative.
+     * See `incrementMonths` for notes on overflow for specific dates.
+     * @param {Date} date
+     * @param {number} numberOfYears
+     * @returns {Date}
+     */
+     function incrementYears(date, numberOfYears) {
+       return incrementMonths(date, numberOfYears * 12);
+     }
+
+     /**
+      * Get the integer distance between two years. This *only* considers the year portion of the
+      * Date instances.
+      *
+      * @param {Date} start
+      * @param {Date} end
+      * @returns {number} Number of months between `start` and `end`. If `end` is before `start`
+      *     chronologically, this number will be negative.
+      */
+     function getYearDistance(start, end) {
+       return end.getFullYear() - start.getFullYear();
+     }
+
+     /**
+      * Clamps a date between a minimum and a maximum date.
+      * @param {Date} date Date to be clamped
+      * @param {Date=} minDate Minimum date
+      * @param {Date=} maxDate Maximum date
+      * @return {Date}
+      */
+     function clampDate(date, minDate, maxDate) {
+       var boundDate = date;
+       if (minDate && date < minDate) {
+         boundDate = new Date(minDate.getTime());
+       }
+       if (maxDate && date > maxDate) {
+         boundDate = new Date(maxDate.getTime());
+       }
+       return boundDate;
+     }
+
+     /**
+      * Extracts and parses the timestamp from a DOM node.
+      * @param  {HTMLElement} node Node from which the timestamp will be extracted.
+      * @return {number} Time since epoch.
+      */
+     function getTimestampFromNode(node) {
+       if (node && node.hasAttribute('data-timestamp')) {
+         return Number(node.getAttribute('data-timestamp'));
+       }
+     }
+
+     /**
+      * Checks if a month is within a min and max range, ignoring the date and time components.
+      * If minDate or maxDate are not dates, they are ignored.
+      * @param {Date} date
+      * @param {Date} minDate
+      * @param {Date} maxDate
+      */
+     function isMonthWithinRange(date, minDate, maxDate) {
+       var month = date.getMonth();
+       var year = date.getFullYear();
+
+       return (!minDate || minDate.getFullYear() < year || minDate.getMonth() <= month) &&
+        (!maxDate || maxDate.getFullYear() > year || maxDate.getMonth() >= month);
+     }
+  });
 })();
 
 })();
@@ -31944,28 +31944,6 @@ function MdTabLabel () {
 "use strict";
 
 
-MdTabScroll.$inject = ["$parse"];angular.module('material.components.tabs')
-    .directive('mdTabScroll', MdTabScroll);
-
-function MdTabScroll ($parse) {
-  return {
-    restrict: 'A',
-    compile: function ($element, attr) {
-      var fn = $parse(attr.mdTabScroll, null, true);
-      return function ngEventHandler (scope, element) {
-        element.on('mousewheel', function (event) {
-          scope.$apply(function () { fn(scope, { $event: event }); });
-        });
-      };
-    }
-  };
-}
-
-})();
-(function(){
-"use strict";
-
-
 MdTabsController.$inject = ["$scope", "$element", "$window", "$mdConstant", "$mdTabInkRipple", "$mdUtil", "$animateCss", "$attrs", "$compile", "$mdTheming"];angular
     .module('material.components.tabs')
     .controller('MdTabsController', MdTabsController);
@@ -32813,6 +32791,28 @@ function MdTabsController ($scope, $element, $window, $mdConstant, $mdTabInkRipp
 (function(){
 "use strict";
 
+
+MdTabScroll.$inject = ["$parse"];angular.module('material.components.tabs')
+    .directive('mdTabScroll', MdTabScroll);
+
+function MdTabScroll ($parse) {
+  return {
+    restrict: 'A',
+    compile: function ($element, attr) {
+      var fn = $parse(attr.mdTabScroll, null, true);
+      return function ngEventHandler (scope, element) {
+        element.on('mousewheel', function (event) {
+          scope.$apply(function () { fn(scope, { $event: event }); });
+        });
+      };
+    }
+  };
+}
+
+})();
+(function(){
+"use strict";
+
 /**
  * @ngdoc directive
  * @name mdTabs
@@ -33140,4 +33140,4 @@ angular.module("material.core").constant("$MD_THEME_CSS", "md-autocomplete.md-TH
 })();
 
 
-})(window, window.angular);;window.ngMaterial={version:{full: "1.1.1-master-72d0685"}};
+})(window, window.angular);;window.ngMaterial={version:{full: "1"}};
