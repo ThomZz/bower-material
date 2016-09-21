@@ -27,7 +27,7 @@
   "homepage": "https://material.angularjs.org",
   "repository": {
     "type": "git",
-    "url": "git://github.com/angular/material.git"
+    "url": "git://github.com/ThomZz/angular-material.git"
   },
   "licenses": [
     {
