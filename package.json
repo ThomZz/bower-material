@@ -1,5 +1,5 @@
 {
-  "name": "thomzz-material",
+  "name": "thomzz-angular-material",
   "version": "1.1.1-master-72d0685",
   "main": "index",
   "format": "cjs",
@@ -27,7 +27,7 @@
   "homepage": "https://material.angularjs.org",
   "repository": {
     "type": "git",
-    "url": "git://github.com/ThomZz/angular-material.git"
+    "url": "git://github.com/ThomZz/material.git"
   },
   "licenses": [
     {
