@@ -1,0 +1,32 @@
+{
+  "name": "thomzz-angular-material",
+  "description": "fork of angular-material, with customization on modules",
+  "license": "MIT",
+  "keywords": [
+    "angular-material",
+    "custom",
+    "modules"
+  ],
+  "authors": [
+    "Thomas-Louis Simard <thomas-louis.simard@logibec.com>"
+  ],
+  "version": "1.1.1-master-72d0685",
+  "dependencies": {
+    "angular": "^1.4.8",
+    "angular-animate": "^1.4.8",
+    "angular-aria": "^1.4.8",
+    "angular-messages": "^1.4.8"
+  },
+  "main": [
+    "angular-material.js",
+    "angular-material.css"
+  ],
+  "homepage": "https://github.com/ThomZz/bower-material",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ]
+}
